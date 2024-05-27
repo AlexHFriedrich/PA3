@@ -15,7 +15,7 @@ class LloydsAlgorithm(KMeans):
         self.num_distance_calculations = 0
 
     def initialize_centroids(self):
-        return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
+        return self.data[:self.k]
 
     def update_centroids(self):
         for i in range(self.k):
@@ -25,15 +25,14 @@ class LloydsAlgorithm(KMeans):
         self.distances = self.calculate_distance()
 
         temp_clusters = self.clusters
-        self.clusters = dict()
-        for i in range(self.k):
-            self.clusters[i] = []
+        self.clusters = {k: [] for k in range(self.k)}
+
         for i in range(self.data.shape[0]):
             cluster = np.argmin(self.distances[i])
             self.labels[i] = int(cluster)
             self.clusters[cluster].append(self.data[i])
 
-        if (self.iterations > 1) and (self.iterations % 10 == 0):
+        if self.iterations > 1:
             return self.convergence_check(temp_clusters)
         else:
             return False

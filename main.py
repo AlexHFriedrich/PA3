@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,15 +11,14 @@ from sklearn.metrics import normalized_mutual_info_score
 from LloydsAlgorithm import LloydsAlgorithm
 
 if __name__ == '__main__':
+    os.environ['OMP_NUM_THREADS'] = '1'
+
     data = pd.read_csv('bio_train.csv', header=None)
     true_labels = data[0].tolist()
-    data = data.drop(columns=[0, 1, 2]).to_numpy()
+    data = data.drop(columns=0).to_numpy()
     num_clusters = len(set(true_labels))
 
-    scaler = StandardScaler()
-    data = scaler.fit_transform(data)
-
-    kmeans_sklearn = KMeans(n_clusters=num_clusters, init='random', max_iter=1000, n_init=5)
+    kmeans_sklearn = KMeans(n_clusters=num_clusters, init=data[:num_clusters], max_iter=1000)
     pred_labels = kmeans_sklearn.fit_predict(data)
     print('NMI: {}'.format(normalized_mutual_info_score(true_labels, pred_labels)))
 
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     num_distance_calculations = []
     runtimes = []
     num_iterations = []
-    for _ in range(5):
+    for _ in range(1):
         lloyds = LloydsAlgorithm(num_clusters, data, true_labels)
         lloyds.fit()
         NMI.append(lloyds.NMI)
