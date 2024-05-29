@@ -5,7 +5,7 @@ from tqdm import trange, tqdm
 
 
 class KMeans:
-    def __init__(self, k, data, true_labels):
+    def __init__(self, k, data, true_labels, max_iter):
         self.k = k
         self.data = data
         self.iterations = 0
@@ -15,6 +15,7 @@ class KMeans:
         self.clusters = dict()
         self.centroids = self.initialize_centroids()
         self.labels = np.zeros(self.data.shape[0])
+        self.max_iter = max_iter
 
     def fit(self):
         raise NotImplementedError

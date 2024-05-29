@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 
 class LloydsAlgorithm(KMeans):
-    def __init__(self, k, data, true_labels):
-        super().__init__(k, data, true_labels)
+    def __init__(self, k, data, true_labels, max_iter):
+        super().__init__(k, data, true_labels, max_iter)
         self.distances = None
         self.converged = False
         self.time = 0
@@ -42,7 +42,7 @@ class LloydsAlgorithm(KMeans):
 
     def fit(self):
         start = time.time()
-        for _ in tqdm(range(1000)):
+        for _ in tqdm(range(self.max_iter)):
             self.converged = self.assign_clusters()
             if self.converged:
                 print('Converged after {} iterations'.format(self.iterations))
