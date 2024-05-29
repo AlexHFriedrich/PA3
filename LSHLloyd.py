@@ -4,8 +4,10 @@ from sklearn.metrics import pairwise_distances
 from KMeans import KMeans
 from tqdm import tqdm
 
+
 class LloydsAlgorithmLSH(KMeans):
-    def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100, debug=False):
+    def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100,
+                 debug=False):
         super().__init__(k, data, true_labels, max_iter)
         self.distances = None
         self.converged = False
@@ -69,7 +71,7 @@ class LloydsAlgorithmLSH(KMeans):
             else:
                 # Randomly reinitialize centroid if cluster is empty
                 self.centroids[i] = self.data[np.random.choice(self.data.shape[0])]
-                if(self.debug):
+                if self.debug:
                     print(f"Cluster {i} is empty. Reinitializing centroid to {self.centroids[i]}")
 
     def assign_clusters(self):
@@ -106,7 +108,6 @@ class LloydsAlgorithmLSH(KMeans):
             return self.convergence_check(temp_clusters), len(assigned_points)
         else:
             return False, len(assigned_points)
-
 
     def fit(self):
         start = time.time()

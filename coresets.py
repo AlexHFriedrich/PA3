@@ -2,10 +2,11 @@ import random
 
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import pairwise_distances, normalized_mutual_info_score
 import os
+
+from sklearn.preprocessing import StandardScaler
 
 
 class Coresets:
@@ -46,8 +47,10 @@ if __name__ == "__main__":
 
     data = pd.read_csv('bio_train.csv', header=None)
     true_labels = data[0].tolist()
-    data = data.drop(columns=0).to_numpy()
+    data = data.drop(columns=[0, 1, 2]).to_numpy()
     num_clusters = len(set(true_labels))
+
+    data = StandardScaler().fit_transform(data)
 
     coreset_sizes = [100, 1000, 10000]
     NMI_scores = {size: [] for size in coreset_sizes}
