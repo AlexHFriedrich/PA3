@@ -62,7 +62,7 @@ class LloydsAlgorithmLSH(KMeans):
                 self.centroid_hash_buckets[j][hash_values].append(i)
 
     def initialize_centroids(self):
-        return self.data[:self.k]
+        return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
 
     def update_centroids(self):
         for i in range(self.k):
@@ -105,9 +105,9 @@ class LloydsAlgorithmLSH(KMeans):
             print(f"Total assigned points after handling remaining buckets: {len(assigned_points)}")
 
         if self.iterations > 1:
-            return self.convergence_check(temp_clusters), len(assigned_points)
+            return self.convergence_check(temp_clusters), len(remaining_points)
         else:
-            return False, len(assigned_points)
+            return False, len(remaining_points)
 
     def fit(self):
         start = time.time()
