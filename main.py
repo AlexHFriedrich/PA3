@@ -24,7 +24,7 @@ def write_results_to_file(filename, nmi, number_dist_calc, runtime, num_iter):
 
 if __name__ == '__main__':
     os.environ['OMP_NUM_THREADS'] = '1'
-    n_iter = 50
+    n_iter = 400
 
     # Load data and preprocess
     data = pd.read_csv('bio_train.csv', header=None)
@@ -47,7 +47,6 @@ if __name__ == '__main__':
                             "Coreset_1000": {"NMI": 0, "runtime": 0},
                             "Coreset_10000": {"NMI": 0, "runtime": 0}}
 
-
     # Lloyds Algorithm
     print("---------------LLOYD ALGORITHM---------------")
     NMI = []
@@ -62,7 +61,7 @@ if __name__ == '__main__':
         losses.append(lloyds.losses)
         num_distance_calculations.append(lloyds.num_distance_calculations)
         runtimes.append(lloyds.time)
-        num_iterations.append(lloyds.iterations)
+        num_iterations.append(lloyds.n_iter_)
     print('Average NMI: {}'.format(np.mean(NMI)))
     print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations)))
     print('Average runtime: {}'.format(np.mean(runtimes)))
@@ -84,39 +83,37 @@ if __name__ == '__main__':
 
     # Lloyds Algorithm with LSH
     print("---------------LLOYD ALGORITHM WITH LSH---------------")
-    configs = [(1, 2)]
-    for config in configs:
 
-        NMI_lsh = []
-        losses_lsh = []
-        num_distance_calculations_lsh = []
-        runtimes_lsh = []
-        num_iterations_lsh = []
-        for _ in range(5):
-            lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data.copy(), true_labels, num_hash_tables=config[0],
-                                            num_hashes_per_table=config[1], bucket_size=1.0, max_iter=n_iter,
-                                            debug=False)
-            lloyds_lsh.fit()
-            NMI_lsh.append(lloyds_lsh.NMI)
-            losses_lsh.append(lloyds_lsh.losses)
-            num_distance_calculations_lsh.append(lloyds_lsh.num_distance_calculations)
-            runtimes_lsh.append(lloyds_lsh.time)
-            num_iterations_lsh.append(lloyds_lsh.iterations)
-        print('Average NMI: {}'.format(np.mean(NMI_lsh)))
-        print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations_lsh)))
-        print('Average runtime: {}'.format(np.mean(runtimes_lsh)))
-        print('Average number of iterations: {}'.format(np.mean(num_iterations_lsh)))
+    NMI_lsh = []
+    losses_lsh = []
+    num_distance_calculations_lsh = []
+    runtimes_lsh = []
+    num_iterations_lsh = []
+    for _ in range(5):
+        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data.copy(), true_labels, num_hash_tables=9,
+                                        num_hashes_per_table=8, bucket_size=8.0, max_iter=n_iter,
+                                        debug=False)
+        lloyds_lsh.fit()
+        NMI_lsh.append(lloyds_lsh.NMI)
+        losses_lsh.append(lloyds_lsh.losses)
+        num_distance_calculations_lsh.append(lloyds_lsh.num_distance_calculations)
+        runtimes_lsh.append(lloyds_lsh.time)
+        num_iterations_lsh.append(lloyds_lsh.n_iter_)
+    print('Average NMI: {}'.format(np.mean(NMI_lsh)))
+    print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations_lsh)))
+    print('Average runtime: {}'.format(np.mean(runtimes_lsh)))
+    print('Average number of iterations: {}'.format(np.mean(num_iterations_lsh)))
 
-        filename = 'lloyds_algorithm_lsh_results_{}_{}.txt'.format(config[0], config[1])
-        write_results_to_file(filename, np.mean(NMI_lsh),
-                              np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
-                              np.mean(num_iterations_lsh))
+    filename = 'lloyds_algorithm_lsh_results.txt'
+    write_results_to_file(filename, np.mean(NMI_lsh),
+                          np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
+                          np.mean(num_iterations_lsh))
 
-        for loss_lsh in losses_lsh:
-            plt.plot(loss_lsh)
-            plt.xlabel('Iteration')
-            plt.ylabel('Loss')
-            plt.title('Convergence of Lloyd\'s Algorithm with LSH')
+    for loss_lsh in losses_lsh:
+        plt.plot(loss_lsh)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Convergence of Lloyd\'s Algorithm with LSH')
         plt.savefig('lloyds_algorithm_lsh_convergence.png')
         plt.close()
 
@@ -136,13 +133,12 @@ if __name__ == '__main__':
         for k in range(10):
             start = time.time()
             coreset = Coresets(min(num_clusters, int(size * 0.9)), data, true_labels, size)
-            predictor = coreset.fit()
-            pred = predictor.predict(data)
+            coreset.fit_Lloyds()
+            pred = coreset.predict(data)
             times[size].append(time.time() - start)
-            num_it[size].append(predictor.n_iter_)
+            num_it[size].append(coreset.kmeans.n_iter_)
             NMI_scores[size].append(normalized_mutual_info_score(true_labels, pred, average_method='arithmetic'))
-            num_distance_calculations[size].append(
-                predictor.n_iter_ * size * num_clusters + data.shape[0] * num_clusters)
+            num_distance_calculations[size].append(coreset.num_distance_calculations)
         NMI_average_scores[size] = np.mean(NMI_scores[size])
         num_it[size] = np.mean(num_it[size])
         times[size] = np.mean(times[size])
@@ -157,23 +153,27 @@ if __name__ == '__main__':
         print('Average number of iterations: {}'.format(num_it[size]))
         print('Average number of distance calculations: {}'.format(num_distance_calculations[size]))
         print('Average runtime: {}'.format(times[size]))
-    '''# check the variance of the NMI scores for each coreset size
+
+    # check the variance of the NMI scores for each coreset size
     for size in coreset_sizes:
-        print(np.var(NMI_scores[size]))'''
+        print(np.var(NMI_scores[size]))
 
     for size in coreset_sizes:
         file_name = 'coreset_{}_results.txt'.format(size)
         write_results_to_file(file_name, NMI_scores[size], num_distance_calculations[size], times[size], num_it[size])
 
-
     # NMI and runtime plots for different implementations
     # one color per implementation, axes of the scatterplot are average NMI and runtime
 
-    plt.scatter([stats_for_comparison["Baseline"]["NMI"]], [stats_for_comparison["Baseline"]["runtime"]], label="Baseline")
+    plt.scatter([stats_for_comparison["Baseline"]["NMI"]], [stats_for_comparison["Baseline"]["runtime"]],
+                label="Baseline")
     plt.scatter([stats_for_comparison["LSH"]["NMI"]], [stats_for_comparison["LSH"]["runtime"]], label="LSH")
-    plt.scatter([stats_for_comparison["Coreset_100"]["NMI"]], [stats_for_comparison["Coreset_100"]["runtime"]], label="Coreset_100")
-    plt.scatter([stats_for_comparison["Coreset_1000"]["NMI"]], [stats_for_comparison["Coreset_1000"]["runtime"]], label="Coreset_1000")
-    plt.scatter([stats_for_comparison["Coreset_10000"]["NMI"]], [stats_for_comparison["Coreset_10000"]["runtime"]], label="Coreset_10000")
+    plt.scatter([stats_for_comparison["Coreset_100"]["NMI"]], [stats_for_comparison["Coreset_100"]["runtime"]],
+                label="Coreset_100")
+    plt.scatter([stats_for_comparison["Coreset_1000"]["NMI"]], [stats_for_comparison["Coreset_1000"]["runtime"]],
+                label="Coreset_1000")
+    plt.scatter([stats_for_comparison["Coreset_10000"]["NMI"]], [stats_for_comparison["Coreset_10000"]["runtime"]],
+                label="Coreset_10000")
     plt.xlabel("NMI")
     plt.ylabel("Runtime")
     plt.legend()

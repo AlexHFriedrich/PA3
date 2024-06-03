@@ -8,7 +8,7 @@ class KMeans:
     def __init__(self, k, data, true_labels, max_iter):
         self.k = k
         self.data = data
-        self.iterations = 0
+        self.n_iter_ = 0
         self.losses = []
         self.NMI = 0
         self.true_labels = self._update_true_labels(true_labels)
@@ -32,7 +32,8 @@ class KMeans:
     def compute_loss(self):
         loss = 0
         for i in range(self.k):
-            loss += np.sum(pairwise_distances(self.clusters[i], [self.centroids[i]]))
+            if len(self.clusters[i]) > 0 and len(self.centroids[i]) > 0:
+                loss += np.sum([np.linalg.norm(self.clusters[i] - self.centroids[i]) ** 2])
         return loss / self.data.shape[0]
 
     def convergence_plot(self):

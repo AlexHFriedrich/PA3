@@ -9,6 +9,7 @@ class LloydsAlgorithmLSH(KMeans):
     def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100,
                  debug=False):
         super().__init__(k, data, true_labels, max_iter)
+        self.num_assignments = None
         self.distances = None
         self.converged = False
         self.time = 0
@@ -104,7 +105,7 @@ class LloydsAlgorithmLSH(KMeans):
         if self.debug:
             print(f"Total assigned points after handling remaining buckets: {len(assigned_points)}")
 
-        if self.iterations > 1:
+        if self.n_iter_ > 1:
             return self.convergence_check(temp_clusters), len(remaining_points)
         else:
             return False, len(remaining_points)
@@ -113,14 +114,14 @@ class LloydsAlgorithmLSH(KMeans):
         start = time.time()
         for _ in tqdm(range(self.max_iter)):
             self._hash_centroids()
-            self.converged, num_assignments = self.assign_clusters()
+            self.converged, self.num_assignments = self.assign_clusters()
             if self.converged:
-                print('Converged after {} iterations'.format(self.iterations))
+                print('Converged after {} iterations'.format(self.n_iter_))
                 break
             self.update_centroids()
             self.losses.append(self.compute_loss())
-            self.iterations += 1
-            self.num_distance_calculations += (self.data.shape[0] - num_assignments) * self.k
+            self.n_iter_ += 1
+            self.num_distance_calculations += (self.data.shape[0] - self.num_assignments) * self.k
         self.NMI = self._NMI()
         self.time = time.time() - start
 

@@ -19,7 +19,10 @@ class LloydsAlgorithm(KMeans):
 
     def update_centroids(self):
         for i in range(self.k):
-            self.centroids[i] = np.mean(self.clusters[i], axis=0)
+            if len(self.clusters[i]) == 0:
+                self.centroids[i] = self.data[np.random.choice(self.data.shape[0])]
+            else:
+                self.centroids[i] = np.mean(self.clusters[i], axis=0)
 
     def assign_clusters(self):
         self.distances = self.calculate_distance()
@@ -32,7 +35,7 @@ class LloydsAlgorithm(KMeans):
             self.labels[i] = int(cluster)
             self.clusters[cluster].append(self.data[i])
 
-        if self.iterations > 1:
+        if self.n_iter_ > 1:
             return self.convergence_check(temp_clusters)
         else:
             return False
@@ -45,11 +48,11 @@ class LloydsAlgorithm(KMeans):
         for _ in tqdm(range(self.max_iter)):
             self.converged = self.assign_clusters()
             if self.converged:
-                print('Converged after {} iterations'.format(self.iterations))
+                print('Converged after {} iterations'.format(self.n_iter_))
                 break
             self.update_centroids()
             self.losses.append(self.compute_loss())
-            self.iterations += 1
+            self.n_iter_ += 1
             self.num_distance_calculations += self.data.shape[0] * self.k
         # self.convergence_plot()
         self.NMI = self._NMI()
@@ -60,3 +63,7 @@ class LloydsAlgorithm(KMeans):
             if not np.array_equal(temp_clusters[i], self.clusters[i]):
                 return False
         return True
+
+    def predict(self, data):
+        self.num_distance_calculations += data.shape[0] * self.k
+        return np.argmin(pairwise_distances(data, self.centroids), axis=1)
