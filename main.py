@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 
 from sklearn.cluster import KMeans
 from sklearn.metrics import normalized_mutual_info_score
+from tqdm import trange
 
 from LloydsAlgorithm import LloydsAlgorithm
 from LSHLloyd import LloydsAlgorithmLSH
@@ -23,8 +24,11 @@ def write_results_to_file(filename, nmi, number_dist_calc, runtime, num_iter):
 
 
 if __name__ == '__main__':
+    # set the seed for reproducibility
+    np.random.seed(42)
+
     os.environ['OMP_NUM_THREADS'] = '1'
-    n_iter = 400
+    n_iter = 650
 
     # Load data and preprocess
     data = pd.read_csv('bio_train.csv', header=None)
@@ -36,10 +40,18 @@ if __name__ == '__main__':
     data = scaler.fit_transform(data)
 
     # Baseline using sklearn
+    '''
     print("---------------SKLEARN---------------")
-    kmeans_sklearn = KMeans(n_clusters=num_clusters, init=data.copy()[:num_clusters], max_iter=n_iter)
-    pred_labels = kmeans_sklearn.fit_predict(data.copy())
-    print('NMI: {}'.format(normalized_mutual_info_score(true_labels, pred_labels)))
+    nmi_sklearn = []
+    num_iter_sklearn = []
+    for _ in range(5):
+        kmeans_sklearn = KMeans(n_clusters=num_clusters, init='random', max_iter=n_iter)
+        pred_labels = kmeans_sklearn.fit_predict(data)
+        nmi_sklearn.append(normalized_mutual_info_score(true_labels, pred_labels))
+        num_iter_sklearn.append(kmeans_sklearn.n_iter_)
+        
+    print('NMI: {}'.format(np.mean(nmi_sklearn)))
+    print('Number of iterations: {}'.format(np.mean(num_iter_sklearn)))'''
 
     stats_for_comparison = {"Baseline": {"NMI": 0, "runtime": 0},
                             "LSH": {"NMI": 0, "runtime": 0},
@@ -54,14 +66,18 @@ if __name__ == '__main__':
     num_distance_calculations = []
     runtimes = []
     num_iterations = []
-    for _ in range(1):
-        lloyds = LloydsAlgorithm(num_clusters, data.copy(), true_labels, max_iter=n_iter)
+    random_init = True
+    num_rep = 5 if random_init else 0
+
+    for _ in range(num_rep):
+        lloyds = LloydsAlgorithm(num_clusters, data, true_labels, max_iter=n_iter, random_init=random_init)
         lloyds.fit()
         NMI.append(lloyds.NMI)
         losses.append(lloyds.losses)
         num_distance_calculations.append(lloyds.num_distance_calculations)
         runtimes.append(lloyds.time)
         num_iterations.append(lloyds.n_iter_)
+
     print('Average NMI: {}'.format(np.mean(NMI)))
     print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations)))
     print('Average runtime: {}'.format(np.mean(runtimes)))
@@ -70,7 +86,7 @@ if __name__ == '__main__':
     stats_for_comparison["Baseline"]["NMI"] = np.mean(NMI)
     stats_for_comparison["Baseline"]["runtime"] = np.mean(runtimes)
 
-    write_results_to_file('lloyds_algorithm_results.txt', np.mean(NMI), np.mean(num_distance_calculations),
+    write_results_to_file('results/lloyds_algorithm_results.txt', np.mean(NMI), np.mean(num_distance_calculations),
                           np.mean(runtimes), np.mean(num_iterations))
 
     for loss in losses:
@@ -78,7 +94,7 @@ if __name__ == '__main__':
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
         plt.title('Convergence of Lloyd\'s Algorithm')
-    plt.savefig('lloyds_algorithm_convergence.png')
+    plt.savefig('results/lloyds_algorithm_convergence.png')
     plt.close()
 
     # Lloyds Algorithm with LSH
@@ -90,8 +106,8 @@ if __name__ == '__main__':
     runtimes_lsh = []
     num_iterations_lsh = []
     for _ in range(5):
-        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data.copy(), true_labels, num_hash_tables=9,
-                                        num_hashes_per_table=8, bucket_size=8.0, max_iter=n_iter,
+        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=3,
+                                        num_hashes_per_table=4, bucket_size=4.0, max_iter=n_iter,
                                         debug=False)
         lloyds_lsh.fit()
         NMI_lsh.append(lloyds_lsh.NMI)
@@ -99,12 +115,13 @@ if __name__ == '__main__':
         num_distance_calculations_lsh.append(lloyds_lsh.num_distance_calculations)
         runtimes_lsh.append(lloyds_lsh.time)
         num_iterations_lsh.append(lloyds_lsh.n_iter_)
+
     print('Average NMI: {}'.format(np.mean(NMI_lsh)))
     print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations_lsh)))
     print('Average runtime: {}'.format(np.mean(runtimes_lsh)))
     print('Average number of iterations: {}'.format(np.mean(num_iterations_lsh)))
 
-    filename = 'lloyds_algorithm_lsh_results.txt'
+    filename = 'results/lloyds_algorithm_lsh_results.txt'
     write_results_to_file(filename, np.mean(NMI_lsh),
                           np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
                           np.mean(num_iterations_lsh))
@@ -113,12 +130,13 @@ if __name__ == '__main__':
         plt.plot(loss_lsh)
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
-        plt.title('Convergence of Lloyd\'s Algorithm with LSH')
-        plt.savefig('lloyds_algorithm_lsh_convergence.png')
-        plt.close()
 
-        stats_for_comparison["LSH"]["NMI"] = np.mean(NMI_lsh)
-        stats_for_comparison["LSH"]["runtime"] = np.mean(runtimes_lsh)
+    plt.title('Convergence of Lloyd\'s Algorithm with LSH')
+    plt.savefig('results/lloyds_algorithm_lsh_convergence.png')
+    plt.close()
+
+    stats_for_comparison["LSH"]["NMI"] = np.mean(NMI_lsh)
+    stats_for_comparison["LSH"]["runtime"] = np.mean(runtimes_lsh)
 
     # Coreset
     print("---------------CORESET---------------")
@@ -130,10 +148,10 @@ if __name__ == '__main__':
     num_distance_calculations = {size: [] for size in coreset_sizes}
     times = {size: [] for size in coreset_sizes}
     for size in coreset_sizes:
-        for k in range(10):
+        for k in range(20):
             start = time.time()
             coreset = Coresets(min(num_clusters, int(size * 0.9)), data, true_labels, size)
-            coreset.fit_Lloyds()
+            coreset.fit()
             pred = coreset.predict(data)
             times[size].append(time.time() - start)
             num_it[size].append(coreset.kmeans.n_iter_)
@@ -154,12 +172,16 @@ if __name__ == '__main__':
         print('Average number of distance calculations: {}'.format(num_distance_calculations[size]))
         print('Average runtime: {}'.format(times[size]))
 
-    # check the variance of the NMI scores for each coreset size
-    for size in coreset_sizes:
-        print(np.var(NMI_scores[size]))
+    # create a box plot for the NMI scores of different sizes
+    plt.boxplot([NMI_scores[size] for size in coreset_sizes], labels=[str(size) for size in coreset_sizes])
+    plt.xlabel('Coreset size')
+    plt.ylabel('NMI')
+    plt.title('NMI scores for different coreset sizes')
+    plt.savefig('results/coreset_NMI_scores.png')
+    plt.close()
 
     for size in coreset_sizes:
-        file_name = 'coreset_{}_results.txt'.format(size)
+        file_name = 'results/coreset_{}_results.txt'.format(size)
         write_results_to_file(file_name, NMI_scores[size], num_distance_calculations[size], times[size], num_it[size])
 
     # NMI and runtime plots for different implementations
@@ -177,4 +199,4 @@ if __name__ == '__main__':
     plt.xlabel("NMI")
     plt.ylabel("Runtime")
     plt.legend()
-    plt.savefig("NMI_vs_runtime.png")
+    plt.savefig("results/NMI_vs_runtime.png")

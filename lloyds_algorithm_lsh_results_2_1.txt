@@ -1,4 +1,0 @@
-Average NMI: 0.040974421907189675
-Average number of distance calculations: 1112329675.8
-Average runtime: 16.143769121170045
-Average number of iterations: 50.0

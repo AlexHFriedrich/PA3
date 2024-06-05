@@ -1,11 +1,16 @@
+import gc
+from collections import defaultdict
+
 import numpy as np
 import time
 from sklearn.metrics import pairwise_distances
 from KMeans import KMeans
 from tqdm import tqdm
 
+from LloydsAlgorithm import LloydsAlgorithm
 
-class LloydsAlgorithmLSH(KMeans):
+
+class LloydsAlgorithmLSH(LloydsAlgorithm):
     def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100,
                  debug=False):
         super().__init__(k, data, true_labels, max_iter)
@@ -86,7 +91,7 @@ class LloydsAlgorithmLSH(KMeans):
                 if bucket in self.hash_buckets[j]:
                     for idx in self.hash_buckets[j][bucket]:
                         if idx not in assigned_points:
-                            cluster = centroids[0]
+                            cluster = centroids[np.random.choice(len(centroids))]
                             self.labels[idx] = int(cluster)
                             self.clusters[cluster].append(self.data[idx])
                             assigned_points.add(idx)
@@ -137,3 +142,38 @@ class LloydsAlgorithmLSH(KMeans):
             if not np.array_equal(temp_clusters[i], self.clusters[i]):
                 return False
         return True
+
+    def grid_search_LSH(self, grid):
+        results = defaultdict(list)
+        for num_hash_tables in grid["num_hash_tables"]:
+            for num_hashes_per_table in grid["num_hashes_per_table"]:
+                if abs(num_hash_tables - num_hashes_per_table) < 3:
+                    for bucket_size in grid["bucket_size"]:
+                        NMI_lsh = []
+                        runtimes_lsh = []
+                        num_assigned_values = []
+
+                        for _ in range(3):
+                            lloyds_lsh = LloydsAlgorithmLSH(self.k, self.data.copy(), self.true_labels,
+                                                            num_hash_tables=num_hash_tables,
+                                                            num_hashes_per_table=num_hashes_per_table,
+                                                            bucket_size=bucket_size,
+                                                            max_iter=self.n_iter_,
+                                                            debug=False)
+                            lloyds_lsh.fit()
+                            NMI_lsh.append(lloyds_lsh.NMI)
+                            runtimes_lsh.append(lloyds_lsh.time)
+                            num_assigned_values.append(lloyds_lsh.num_assignments)
+
+                        NMI = sum(NMI_lsh) / len(NMI_lsh)
+                        config_str = f"nht={num_hash_tables}, nhpt={num_hashes_per_table}, bs={bucket_size}"
+                        results[config_str] = [NMI, sum(runtimes_lsh) / len(runtimes_lsh),
+                                               sum(num_assigned_values) / len(num_assigned_values)]
+                        gc.collect()
+
+        for key, value in results.items():
+            print(f"{key}: {value}")
+
+        with open('results/results_hyperparameter_grid_search_lsh.txt', 'w') as f:
+            for key, value in results.items():
+                f.write(f"{key}: {value}\n")

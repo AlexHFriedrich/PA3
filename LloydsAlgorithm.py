@@ -1,20 +1,33 @@
 import time
 
 import numpy as np
-from sklearn.metrics import pairwise_distances
+from matplotlib import pyplot as plt
+from sklearn.metrics import pairwise_distances, normalized_mutual_info_score
 from KMeans import KMeans
 from tqdm import tqdm
 
 
-class LloydsAlgorithm(KMeans):
-    def __init__(self, k, data, true_labels, max_iter):
-        super().__init__(k, data, true_labels, max_iter)
+class LloydsAlgorithm():
+    def __init__(self, k, data, true_labels, max_iter, random_init=False):
+        self.random_init = random_init
+        self.k = k
+        self.data = data
+        self.n_iter_ = 0
+        self.losses = []
+        self.NMI = 0
+        self.true_labels = self._update_true_labels(true_labels)
+        self.clusters = dict()
+        self.centroids = self.initialize_centroids()
+        self.labels = np.zeros(self.data.shape[0])
+        self.max_iter = max_iter
         self.distances = None
         self.converged = False
         self.time = 0
         self.num_distance_calculations = 0
 
     def initialize_centroids(self):
+        if self.random_init:
+            return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
         return self.data[:self.k]
 
     def update_centroids(self):
@@ -67,3 +80,27 @@ class LloydsAlgorithm(KMeans):
     def predict(self, data):
         self.num_distance_calculations += data.shape[0] * self.k
         return np.argmin(pairwise_distances(data, self.centroids), axis=1)
+
+    def compute_loss(self):
+        loss = 0
+        for i in range(self.k):
+            if len(self.clusters[i]) > 0 and len(self.centroids[i]) > 0:
+                loss += np.sum([np.linalg.norm(self.clusters[i] - self.centroids[i]) ** 2])
+        return loss / self.data.shape[0]
+
+    def convergence_plot(self):
+        plt.plot(self.losses)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Convergence of Lloyd\'s Algorithm')
+        plt.savefig('lloyds_algorithm_convergence.png')
+        plt.show()
+
+    def _NMI(self):
+        return normalized_mutual_info_score(self.true_labels, self.labels)
+
+    @staticmethod
+    def _update_true_labels(true_labels):
+        unique_labels = list(set(true_labels))
+        true_label_dict = {unique_labels[i]: i for i in range(len(unique_labels))}
+        return [true_label_dict[label] for label in true_labels]
