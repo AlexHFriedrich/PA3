@@ -1,13 +1,10 @@
 import time
-
 import numpy as np
-from matplotlib import pyplot as plt
 from sklearn.metrics import pairwise_distances, normalized_mutual_info_score
-from KMeans import KMeans
 from tqdm import tqdm
 
 
-class LloydsAlgorithm():
+class LloydsAlgorithm:
     def __init__(self, k, data, true_labels, max_iter, random_init=False):
         self.random_init = random_init
         self.k = k
@@ -15,9 +12,9 @@ class LloydsAlgorithm():
         self.n_iter_ = 0
         self.losses = []
         self.NMI = 0
-        self.true_labels = self._update_true_labels(true_labels)
+        self.true_labels = true_labels
         self.clusters = dict()
-        self.centroids = self.initialize_centroids()
+        self.centroids = self._initialize_centroids()
         self.labels = np.zeros(self.data.shape[0])
         self.max_iter = max_iter
         self.distances = None
@@ -25,20 +22,31 @@ class LloydsAlgorithm():
         self.time = 0
         self.num_distance_calculations = 0
 
-    def initialize_centroids(self):
+    def _initialize_centroids(self):
+        """
+        Initialize the centroids of the clusters either as k random data points or the first k data points
+        :return: initial centroids
+        """
         if self.random_init:
             return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
         return self.data[:self.k]
 
-    def update_centroids(self):
+    def _update_centroids(self):
+        """
+        Update the centroids of the clusters to random data points if cluster is empty, otherwise update to the mean
+        of the current cluster.
+        """
         for i in range(self.k):
             if len(self.clusters[i]) == 0:
                 self.centroids[i] = self.data[np.random.choice(self.data.shape[0])]
             else:
                 self.centroids[i] = np.mean(self.clusters[i], axis=0)
 
-    def assign_clusters(self):
-        self.distances = self.calculate_distance()
+    def _assign_clusters(self):
+        """
+        assign each data point to the closest centroid and check if the clusters have converged
+        """
+        self.distances = self._calculate_distance()
 
         temp_clusters = self.clusters
         self.clusters = {k: [] for k in range(self.k)}
@@ -49,58 +57,71 @@ class LloydsAlgorithm():
             self.clusters[cluster].append(self.data[i])
 
         if self.n_iter_ > 1:
-            return self.convergence_check(temp_clusters)
+            return self._convergence_check(temp_clusters)
         else:
             return False
 
-    def calculate_distance(self):
+    def _calculate_distance(self):
+        """
+        Calculate the n by k distance matrix between the data points and the centroids
+        :return: distance matrix
+        """
         return pairwise_distances(self.data, self.centroids)
 
     def fit(self):
+        """
+        Fit the model to the data
+        :return:
+        """
         start = time.time()
         for _ in tqdm(range(self.max_iter)):
-            self.converged = self.assign_clusters()
+            self.converged = self._assign_clusters()
             if self.converged:
                 print('Converged after {} iterations'.format(self.n_iter_))
                 break
-            self.update_centroids()
-            self.losses.append(self.compute_loss())
+            self._update_centroids()
+            self.losses.append(self._compute_loss())
             self.n_iter_ += 1
             self.num_distance_calculations += self.data.shape[0] * self.k
         # self.convergence_plot()
         self.NMI = self._NMI()
         self.time = time.time() - start
 
-    def convergence_check(self, temp_clusters):
+    def _convergence_check(self, temp_clusters):
+        """
+        Check if the clusters of the previous iteration are the same as the current iteration
+        :param temp_clusters: clusters from the previous iteration
+        :return: boolean indicating if the clusters have converged
+        """
         for i in range(self.k):
             if not np.array_equal(temp_clusters[i], self.clusters[i]):
                 return False
         return True
 
     def predict(self, data):
+        """
+        Predict the clusters for each data point using the current centroids
+        :param data:
+        :return:
+        """
         self.num_distance_calculations += data.shape[0] * self.k
         return np.argmin(pairwise_distances(data, self.centroids), axis=1)
 
-    def compute_loss(self):
+    def _compute_loss(self):
+        """
+        Compute the loss of the current clustering as the sum of the squared distances between the data points and the
+        centroids, given the current cluster assignments
+        :return: average loss
+        """
         loss = 0
         for i in range(self.k):
             if len(self.clusters[i]) > 0 and len(self.centroids[i]) > 0:
                 loss += np.sum([np.linalg.norm(self.clusters[i] - self.centroids[i]) ** 2])
         return loss / self.data.shape[0]
 
-    def convergence_plot(self):
-        plt.plot(self.losses)
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Convergence of Lloyd\'s Algorithm')
-        plt.savefig('lloyds_algorithm_convergence.png')
-        plt.show()
-
     def _NMI(self):
+        """
+        Calculate the NMI considering the true labels and the predicted labels
+        :return: NMI
+        """
         return normalized_mutual_info_score(self.true_labels, self.labels)
-
-    @staticmethod
-    def _update_true_labels(true_labels):
-        unique_labels = list(set(true_labels))
-        true_label_dict = {unique_labels[i]: i for i in range(len(unique_labels))}
-        return [true_label_dict[label] for label in true_labels]

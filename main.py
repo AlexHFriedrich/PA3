@@ -1,14 +1,10 @@
 import os
 import time
-
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
-
-from sklearn.cluster import KMeans
 from sklearn.metrics import normalized_mutual_info_score
-from tqdm import trange
 
 from LloydsAlgorithm import LloydsAlgorithm
 from LSHLloyd import LloydsAlgorithmLSH
@@ -16,6 +12,15 @@ from coresets import Coresets
 
 
 def write_results_to_file(filename, nmi, number_dist_calc, runtime, num_iter):
+    """
+    Write the training results to corresponding file
+    :param filename: location of the file
+    :param nmi: achieved NMI
+    :param number_dist_calc: number of distance calculations
+    :param runtime: runtime in seconds
+    :param num_iter: number of iterations for convergence
+    :return:
+    """
     with open(filename, 'w') as f:
         f.write('Average NMI: {}\n'.format(np.mean(nmi)))
         f.write('Average number of distance calculations: {}\n'.format(np.mean(number_dist_calc)))
@@ -24,34 +29,23 @@ def write_results_to_file(filename, nmi, number_dist_calc, runtime, num_iter):
 
 
 if __name__ == '__main__':
+    os.environ['OMP_NUM_THREADS'] = '4'
+
     # set the seed for reproducibility
     np.random.seed(42)
 
-    os.environ['OMP_NUM_THREADS'] = '1'
-    n_iter = 650
+    # maximum number of iterations the algorithms are trained for
+    n_iter = 500
 
-    # Load data and preprocess
+    # Load data and preprocess, dropping columns 0, 1, 2
     data = pd.read_csv('bio_train.csv', header=None)
     true_labels = data[0].tolist()
     data = data.drop(columns=[0, 1, 2]).to_numpy()
     num_clusters = len(set(true_labels))
 
+    # scaling the data to improve performance
     scaler = StandardScaler()
     data = scaler.fit_transform(data)
-
-    # Baseline using sklearn
-    '''
-    print("---------------SKLEARN---------------")
-    nmi_sklearn = []
-    num_iter_sklearn = []
-    for _ in range(5):
-        kmeans_sklearn = KMeans(n_clusters=num_clusters, init='random', max_iter=n_iter)
-        pred_labels = kmeans_sklearn.fit_predict(data)
-        nmi_sklearn.append(normalized_mutual_info_score(true_labels, pred_labels))
-        num_iter_sklearn.append(kmeans_sklearn.n_iter_)
-        
-    print('NMI: {}'.format(np.mean(nmi_sklearn)))
-    print('Number of iterations: {}'.format(np.mean(num_iter_sklearn)))'''
 
     stats_for_comparison = {"Baseline": {"NMI": 0, "runtime": 0},
                             "LSH": {"NMI": 0, "runtime": 0},
@@ -60,14 +54,18 @@ if __name__ == '__main__':
                             "Coreset_10000": {"NMI": 0, "runtime": 0}}
 
     # Lloyds Algorithm
-    print("---------------LLOYD ALGORITHM---------------")
+    print("\n---------------LLOYD ALGORITHM---------------")
+
+    # container to store results
     NMI = []
     losses = []
     num_distance_calculations = []
     runtimes = []
     num_iterations = []
-    random_init = True
-    num_rep = 5 if random_init else 0
+
+    # run parameters for Lloyds Algorithm, setting random_init to false will use the first k data points as centroids
+    random_init = False
+    num_rep = 5 if random_init else 1
 
     for _ in range(num_rep):
         lloyds = LloydsAlgorithm(num_clusters, data, true_labels, max_iter=n_iter, random_init=random_init)
@@ -89,22 +87,24 @@ if __name__ == '__main__':
     write_results_to_file('results/lloyds_algorithm_results.txt', np.mean(NMI), np.mean(num_distance_calculations),
                           np.mean(runtimes), np.mean(num_iterations))
 
+    # plot the convergence of the algorithm
     for loss in losses:
         plt.plot(loss)
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Convergence of Lloyd\'s Algorithm')
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.title('Convergence of Lloyd\'s Algorithm')
     plt.savefig('results/lloyds_algorithm_convergence.png')
     plt.close()
 
     # Lloyds Algorithm with LSH
-    print("---------------LLOYD ALGORITHM WITH LSH---------------")
-
+    print("\n---------------LLOYD ALGORITHM WITH LSH---------------")
+    # Container to store results
     NMI_lsh = []
     losses_lsh = []
     num_distance_calculations_lsh = []
     runtimes_lsh = []
     num_iterations_lsh = []
+
     for _ in range(5):
         lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=3,
                                         num_hashes_per_table=4, bucket_size=4.0, max_iter=n_iter,
@@ -126,11 +126,12 @@ if __name__ == '__main__':
                           np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
                           np.mean(num_iterations_lsh))
 
+    # plot the convergence of the algorithm
     for loss_lsh in losses_lsh:
         plt.plot(loss_lsh)
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
 
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
     plt.title('Convergence of Lloyd\'s Algorithm with LSH')
     plt.savefig('results/lloyds_algorithm_lsh_convergence.png')
     plt.close()
@@ -142,21 +143,26 @@ if __name__ == '__main__':
     print("---------------CORESET---------------")
 
     coreset_sizes = [100, 1000, 10000]
+
+    # container to store results
     NMI_scores = {size: [] for size in coreset_sizes}
     NMI_average_scores = {size: [] for size in coreset_sizes}
     num_it = {size: [] for size in coreset_sizes}
     num_distance_calculations = {size: [] for size in coreset_sizes}
     times = {size: [] for size in coreset_sizes}
+
     for size in coreset_sizes:
-        for k in range(20):
+        for k in range(10):
             start = time.time()
             coreset = Coresets(min(num_clusters, int(size * 0.9)), data, true_labels, size)
             coreset.fit()
             pred = coreset.predict(data)
+
             times[size].append(time.time() - start)
             num_it[size].append(coreset.kmeans.n_iter_)
             NMI_scores[size].append(normalized_mutual_info_score(true_labels, pred, average_method='arithmetic'))
             num_distance_calculations[size].append(coreset.num_distance_calculations)
+
         NMI_average_scores[size] = np.mean(NMI_scores[size])
         num_it[size] = np.mean(num_it[size])
         times[size] = np.mean(times[size])

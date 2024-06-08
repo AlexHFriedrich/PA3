@@ -1,12 +1,9 @@
 import gc
 from collections import defaultdict
-
 import numpy as np
 import time
 from sklearn.metrics import pairwise_distances
-from KMeans import KMeans
 from tqdm import tqdm
-
 from LloydsAlgorithm import LloydsAlgorithm
 
 
@@ -67,10 +64,10 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
                     self.centroid_hash_buckets[j][hash_values] = []
                 self.centroid_hash_buckets[j][hash_values].append(i)
 
-    def initialize_centroids(self):
+    def _initialize_centroids(self):
         return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
 
-    def update_centroids(self):
+    def _update_centroids(self):
         for i in range(self.k):
             if len(self.clusters[i]) > 0:
                 self.centroids[i] = np.mean(self.clusters[i], axis=0)
@@ -80,7 +77,7 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
                 if self.debug:
                     print(f"Cluster {i} is empty. Reinitializing centroid to {self.centroids[i]}")
 
-    def assign_clusters(self):
+    def _assign_clusters(self):
         temp_clusters = self.clusters
         self.clusters = {k: [] for k in range(self.k)}
         assigned_points = set()
@@ -111,7 +108,7 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
             print(f"Total assigned points after handling remaining buckets: {len(assigned_points)}")
 
         if self.n_iter_ > 1:
-            return self.convergence_check(temp_clusters), len(remaining_points)
+            return self._convergence_check(temp_clusters), len(remaining_points)
         else:
             return False, len(remaining_points)
 
@@ -119,29 +116,16 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
         start = time.time()
         for _ in tqdm(range(self.max_iter)):
             self._hash_centroids()
-            self.converged, self.num_assignments = self.assign_clusters()
+            self.converged, self.num_assignments = self._assign_clusters()
             if self.converged:
                 print('Converged after {} iterations'.format(self.n_iter_))
                 break
-            self.update_centroids()
-            self.losses.append(self.compute_loss())
+            self._update_centroids()
+            self.losses.append(self._compute_loss())
             self.n_iter_ += 1
             self.num_distance_calculations += (self.data.shape[0] - self.num_assignments) * self.k
         self.NMI = self._NMI()
         self.time = time.time() - start
-
-    def compute_loss(self):
-        loss = 0
-        for i in range(self.k):
-            if len(self.clusters[i]) > 0:
-                loss += np.sum(pairwise_distances(self.clusters[i], [self.centroids[i]]))
-        return loss / self.data.shape[0]
-
-    def convergence_check(self, temp_clusters):
-        for i in range(self.k):
-            if not np.array_equal(temp_clusters[i], self.clusters[i]):
-                return False
-        return True
 
     def grid_search_LSH(self, grid):
         results = defaultdict(list)
