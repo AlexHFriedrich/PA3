@@ -54,7 +54,7 @@ if __name__ == '__main__':
                             "Coreset_10000": {"NMI": 0, "runtime": 0}}
 
     # Lloyds Algorithm
-    print("\n---------------LLOYD ALGORITHM---------------")
+    print("\n---------------LLOYD'S ALGORITHM---------------")
 
     # container to store results
     NMI = []
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     num_iterations = []
 
     # run parameters for Lloyds Algorithm, setting random_init to false will use the first k data points as centroids
-    random_init = False
+    random_init = True
     num_rep = 5 if random_init else 1
 
     for _ in range(num_rep):
@@ -106,8 +106,8 @@ if __name__ == '__main__':
     num_iterations_lsh = []
 
     for _ in range(5):
-        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=3,
-                                        num_hashes_per_table=4, bucket_size=4.0, max_iter=n_iter,
+        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=2,
+                                        num_hashes_per_table=3, bucket_size=1.0, max_iter=n_iter,
                                         debug=False)
         lloyds_lsh.fit()
         NMI_lsh.append(lloyds_lsh.NMI)

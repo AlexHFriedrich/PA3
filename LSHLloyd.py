@@ -9,8 +9,8 @@ from LloydsAlgorithm import LloydsAlgorithm
 
 class LloydsAlgorithmLSH(LloydsAlgorithm):
     def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100,
-                 debug=False):
-        super().__init__(k, data, true_labels, max_iter)
+                 debug=False, tol=1e-2):
+        super().__init__(k, data, true_labels, max_iter, tol=tol)
         self.num_assignments = None
         self.distances = None
         self.converged = False
@@ -67,16 +67,6 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
     def _initialize_centroids(self):
         return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
 
-    def _update_centroids(self):
-        for i in range(self.k):
-            if len(self.clusters[i]) > 0:
-                self.centroids[i] = np.mean(self.clusters[i], axis=0)
-            else:
-                # Randomly reinitialize centroid if cluster is empty
-                self.centroids[i] = self.data[np.random.choice(self.data.shape[0])]
-                if self.debug:
-                    print(f"Cluster {i} is empty. Reinitializing centroid to {self.centroids[i]}")
-
     def _assign_clusters(self):
         temp_clusters = self.clusters
         self.clusters = {k: [] for k in range(self.k)}
@@ -105,7 +95,7 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
                 self.clusters[cluster].append(self.data[idx])
                 assigned_points.add(idx)
         if self.debug:
-            print(f"Total assigned points after handling remaining buckets: {len(assigned_points)}")
+            print(f"Total assigned points after handling remaining buckets: {len(remaining_points)}")
 
         if self.n_iter_ > 1:
             return self._convergence_check(temp_clusters), len(remaining_points)
@@ -117,10 +107,10 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
         for _ in tqdm(range(self.max_iter)):
             self._hash_centroids()
             self.converged, self.num_assignments = self._assign_clusters()
-            if self.converged:
+            relative_change_in_centroids = self._update_centroids()
+            if self.converged or (self.n_iter_ > 10 and relative_change_in_centroids < self.tol):
                 print('Converged after {} iterations'.format(self.n_iter_))
                 break
-            self._update_centroids()
             self.losses.append(self._compute_loss())
             self.n_iter_ += 1
             self.num_distance_calculations += (self.data.shape[0] - self.num_assignments) * self.k
