@@ -97,7 +97,7 @@ if __name__ == '__main__':
     plt.close()
 
     # Lloyds Algorithm with LSH
-    print("\n---------------LLOYD ALGORITHM WITH LSH---------------")
+    print("\n---------------LLOYD'S ALGORITHM WITH LSH---------------")
     # Container to store results
     NMI_lsh = []
     losses_lsh = []
@@ -106,8 +106,8 @@ if __name__ == '__main__':
     num_iterations_lsh = []
 
     for _ in range(5):
-        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=2,
-                                        num_hashes_per_table=3, bucket_size=1.0, max_iter=n_iter,
+        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=5,
+                                        num_hashes_per_table=5, bucket_size=4.0, max_iter=n_iter,
                                         debug=False)
         lloyds_lsh.fit()
         NMI_lsh.append(lloyds_lsh.NMI)
