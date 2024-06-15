@@ -48,96 +48,124 @@ if __name__ == '__main__':
     data = scaler.fit_transform(data)
 
     stats_for_comparison = {"Baseline": {"NMI": 0, "runtime": 0},
+                            "Baseline_tol=2e-2": {"NMI": 0, "runtime": 0},
                             "LSH": {"NMI": 0, "runtime": 0},
+                            "LSH_tol=2e-2": {"NMI": 0, "runtime": 0},
                             "Coreset_100": {"NMI": 0, "runtime": 0},
                             "Coreset_1000": {"NMI": 0, "runtime": 0},
                             "Coreset_10000": {"NMI": 0, "runtime": 0}}
 
     # Lloyds Algorithm
-    print("\n---------------LLOYD ALGORITHM---------------")
+    print("\n---------------LLOYD'S ALGORITHM---------------")
 
-    # container to store results
-    NMI = []
-    losses = []
-    num_distance_calculations = []
-    runtimes = []
-    num_iterations = []
+    for i in range(2):
+        if i == 0:
+            tol = 0 # no secondary convergence criterium
+            tol_str = "(tol=0)"
+        else:
+            tol = 2*1e-2 # secondary convergence criterium
+            tol_str = "(tol=2e-2)"
 
-    # run parameters for Lloyds Algorithm, setting random_init to false will use the first k data points as centroids
-    random_init = False
-    num_rep = 5 if random_init else 1
+        # Container to store results
+        NMI = []
+        losses = []
+        num_distance_calculations = []
+        runtimes = []
+        num_iterations = []
 
-    for _ in range(num_rep):
-        lloyds = LloydsAlgorithm(num_clusters, data, true_labels, max_iter=n_iter, random_init=random_init)
-        lloyds.fit()
-        NMI.append(lloyds.NMI)
-        losses.append(lloyds.losses)
-        num_distance_calculations.append(lloyds.num_distance_calculations)
-        runtimes.append(lloyds.time)
-        num_iterations.append(lloyds.n_iter_)
+        # Run parameters for Lloyds Algorithm, setting random_init to false will use the first k data points as centroids
+        random_init = True
+        num_rep = 5 if random_init else 1
 
-    print('Average NMI: {}'.format(np.mean(NMI)))
-    print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations)))
-    print('Average runtime: {}'.format(np.mean(runtimes)))
-    print('Average number of iterations: {}'.format(np.mean(num_iterations)))
+        for _ in range(num_rep):
+            lloyds = LloydsAlgorithm(num_clusters, data, true_labels, max_iter=n_iter, random_init=random_init, tol=tol)
+            lloyds.fit()
+            NMI.append(lloyds.NMI)
+            losses.append(lloyds.losses)
+            num_distance_calculations.append(lloyds.num_distance_calculations)
+            runtimes.append(lloyds.time)
+            num_iterations.append(lloyds.n_iter_)
 
-    stats_for_comparison["Baseline"]["NMI"] = np.mean(NMI)
-    stats_for_comparison["Baseline"]["runtime"] = np.mean(runtimes)
+        print(f'Average NMI {tol_str}: {np.mean(NMI)}')
+        print(f'Average number of distance calculations {tol_str}: {np.mean(num_distance_calculations)}')
+        print(f'Average runtime {tol_str}: {np.mean(runtimes)}')
+        print(f'Average number of iterations {tol_str}: {np.mean(num_iterations)}')
 
-    write_results_to_file('results/lloyds_algorithm_results.txt', np.mean(NMI), np.mean(num_distance_calculations),
-                          np.mean(runtimes), np.mean(num_iterations))
+        if i == 0:
+            stats_for_comparison["Baseline"]["NMI"] = np.mean(NMI)
+            stats_for_comparison["Baseline"]["runtime"] = np.mean(runtimes)
+        else:
+            stats_for_comparison["Baseline_tol=2e-2"]["NMI"] = np.mean(NMI)
+            stats_for_comparison["Baseline_tol=2e-2"]["runtime"] = np.mean(runtimes)
 
-    # plot the convergence of the algorithm
-    for loss in losses:
-        plt.plot(loss)
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
-    plt.title('Convergence of Lloyd\'s Algorithm')
-    plt.savefig('results/lloyds_algorithm_convergence.png')
-    plt.close()
+        filename = f'results/lloyds_algorithm_results_{tol_str}.txt'
+        write_results_to_file(filename, np.mean(NMI), np.mean(num_distance_calculations),
+                            np.mean(runtimes), np.mean(num_iterations))
+
+        # Plot the convergence of the algorithm
+        for loss in losses:
+            plt.plot(loss)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title(f'Convergence of Lloyd\'s Algorithm {tol_str}')
+        plt.savefig(f'results/lloyds_algorithm_convergence_{tol_str}.png')
+        plt.close()
+
 
     # Lloyds Algorithm with LSH
-    print("\n---------------LLOYD ALGORITHM WITH LSH---------------")
-    # Container to store results
-    NMI_lsh = []
-    losses_lsh = []
-    num_distance_calculations_lsh = []
-    runtimes_lsh = []
-    num_iterations_lsh = []
+    print("\n---------------LLOYD'S ALGORITHM WITH LSH---------------")
 
-    for _ in range(5):
-        lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=3,
-                                        num_hashes_per_table=4, bucket_size=4.0, max_iter=n_iter,
-                                        debug=False)
-        lloyds_lsh.fit()
-        NMI_lsh.append(lloyds_lsh.NMI)
-        losses_lsh.append(lloyds_lsh.losses)
-        num_distance_calculations_lsh.append(lloyds_lsh.num_distance_calculations)
-        runtimes_lsh.append(lloyds_lsh.time)
-        num_iterations_lsh.append(lloyds_lsh.n_iter_)
+    for i in range(2):
+        if i == 0:
+            tol = 0 # no secondary convergence criterium
+            tol_str = "(tol=0)"
+        else:
+            tol = 2*1e-2 # secondary convergence criterium
+            tol_str = "(tol=2e-2)"
+        # Container to store results
+        NMI_lsh = []
+        losses_lsh = []
+        num_distance_calculations_lsh = []
+        runtimes_lsh = []
+        num_iterations_lsh = []
 
-    print('Average NMI: {}'.format(np.mean(NMI_lsh)))
-    print('Average number of distance calculations: {}'.format(np.mean(num_distance_calculations_lsh)))
-    print('Average runtime: {}'.format(np.mean(runtimes_lsh)))
-    print('Average number of iterations: {}'.format(np.mean(num_iterations_lsh)))
+        for _ in range(5):
+            lloyds_lsh = LloydsAlgorithmLSH(num_clusters, data, true_labels, num_hash_tables=5,
+                                            num_hashes_per_table=5, bucket_size=4.0, max_iter=n_iter,
+                                            debug=False, tol=tol)
+            lloyds_lsh.fit()
+            NMI_lsh.append(lloyds_lsh.NMI)
+            losses_lsh.append(lloyds_lsh.losses)
+            num_distance_calculations_lsh.append(lloyds_lsh.num_distance_calculations)
+            runtimes_lsh.append(lloyds_lsh.time)
+            num_iterations_lsh.append(lloyds_lsh.n_iter_)
 
-    filename = 'results/lloyds_algorithm_lsh_results.txt'
-    write_results_to_file(filename, np.mean(NMI_lsh),
-                          np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
-                          np.mean(num_iterations_lsh))
+        print(f'Average NMI {tol_str}: {np.mean(NMI_lsh)}')
+        print(f'Average number of distance calculations {tol_str}: {np.mean(num_distance_calculations_lsh)}')
+        print(f'Average runtime {tol_str}: {np.mean(runtimes_lsh)}')
+        print(f'Average number of iterations {tol_str}: {np.mean(num_iterations_lsh)}')
 
-    # plot the convergence of the algorithm
-    for loss_lsh in losses_lsh:
-        plt.plot(loss_lsh)
+        filename = f'results/lloyds_algorithm_lsh_results_{tol_str}.txt'
+        write_results_to_file(filename, np.mean(NMI_lsh),
+                            np.mean(num_distance_calculations_lsh), np.mean(runtimes_lsh),
+                            np.mean(num_iterations_lsh))
 
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
-    plt.title('Convergence of Lloyd\'s Algorithm with LSH')
-    plt.savefig('results/lloyds_algorithm_lsh_convergence.png')
-    plt.close()
+        # plot the convergence of the algorithm
+        for loss_lsh in losses_lsh:
+            plt.plot(loss_lsh)
 
-    stats_for_comparison["LSH"]["NMI"] = np.mean(NMI_lsh)
-    stats_for_comparison["LSH"]["runtime"] = np.mean(runtimes_lsh)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title(f'Convergence of Lloyd\'s Algorithm with LSH {tol_str}')
+        plt.savefig(f'results/lloyds_algorithm_lsh_convergence_{tol_str}.png')
+        plt.close()
+
+        if i == 0:
+            stats_for_comparison["LSH"]["NMI"] = np.mean(NMI_lsh)
+            stats_for_comparison["LSH"]["runtime"] = np.mean(runtimes_lsh)
+        else:
+            stats_for_comparison["LSH_tol=2e-2"]["NMI"] = np.mean(NMI_lsh)
+            stats_for_comparison["LSH_tol=2e-2"]["runtime"] = np.mean(runtimes_lsh)
 
     # Coreset
     print("---------------CORESET---------------")

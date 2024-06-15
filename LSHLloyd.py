@@ -9,9 +9,9 @@ from LloydsAlgorithm import LloydsAlgorithm
 
 class LloydsAlgorithmLSH(LloydsAlgorithm):
     def __init__(self, k, data, true_labels, num_hash_tables=2, num_hashes_per_table=3, bucket_size=1.0, max_iter=100,
-                 debug=False):
-        super().__init__(k, data, true_labels, max_iter)
-        self.num_assignments = None
+                 debug=False, tol=2*1e-2):
+        super().__init__(k, data, true_labels, max_iter, tol=tol)
+        self.points_assigned_by_distance = None
         self.distances = None
         self.converged = False
         self.time = 0
@@ -67,31 +67,22 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
     def _initialize_centroids(self):
         return self.data[np.random.choice(self.data.shape[0], self.k, replace=False)]
 
-    def _update_centroids(self):
-        for i in range(self.k):
-            if len(self.clusters[i]) > 0:
-                self.centroids[i] = np.mean(self.clusters[i], axis=0)
-            else:
-                # Randomly reinitialize centroid if cluster is empty
-                self.centroids[i] = self.data[np.random.choice(self.data.shape[0])]
-                if self.debug:
-                    print(f"Cluster {i} is empty. Reinitializing centroid to {self.centroids[i]}")
-
     def _assign_clusters(self):
         temp_clusters = self.clusters
         self.clusters = {k: [] for k in range(self.k)}
         assigned_points = set()
 
         # First assign points from hash buckets
-        for j in range(self.num_hash_tables):
-            for bucket, centroids in self.centroid_hash_buckets[j].items():
-                if bucket in self.hash_buckets[j]:
-                    for idx in self.hash_buckets[j][bucket]:
-                        if idx not in assigned_points:
-                            cluster = centroids[np.random.choice(len(centroids))]
-                            self.labels[idx] = int(cluster)
-                            self.clusters[cluster].append(self.data[idx])
-                            assigned_points.add(idx)
+        for table_index, hash_table in enumerate(self.centroid_hash_buckets):
+            for hash_key, centroid_indices in hash_table.items():
+                data_point_indices = self.hash_buckets[table_index].get(hash_key, [])
+                if len(centroid_indices) > 0:
+                    first_centroid_index = centroid_indices[0]
+                    for data_point_index in data_point_indices:
+                        if data_point_index not in assigned_points:
+                            self.clusters[first_centroid_index].append(data_point_index)
+                            self.labels[data_point_index] = first_centroid_index
+                            assigned_points.add(data_point_index)
         if self.debug:
             print(f"Assigned points from hash buckets: {len(assigned_points)} out of {len(self.data)}")
 
@@ -102,10 +93,10 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
             for i, idx in enumerate(remaining_points):
                 cluster = np.argmin(self.distances[i])
                 self.labels[idx] = int(cluster)
-                self.clusters[cluster].append(self.data[idx])
+                self.clusters[cluster].append(idx)
                 assigned_points.add(idx)
         if self.debug:
-            print(f"Total assigned points after handling remaining buckets: {len(assigned_points)}")
+            print(f"Total assigned points after handling remaining buckets: {len(remaining_points)}")
 
         if self.n_iter_ > 1:
             return self._convergence_check(temp_clusters), len(remaining_points)
@@ -116,14 +107,11 @@ class LloydsAlgorithmLSH(LloydsAlgorithm):
         start = time.time()
         for _ in tqdm(range(self.max_iter)):
             self._hash_centroids()
-            self.converged, self.num_assignments = self._assign_clusters()
-            if self.converged:
-                print('Converged after {} iterations'.format(self.n_iter_))
+            self.converged, self.points_assigned_by_distance = self._assign_clusters()
+            conv = self._step()
+            if conv:
                 break
-            self._update_centroids()
-            self.losses.append(self._compute_loss())
-            self.n_iter_ += 1
-            self.num_distance_calculations += (self.data.shape[0] - self.num_assignments) * self.k
+            self.num_distance_calculations += self.points_assigned_by_distance * self.k
         self.NMI = self._NMI()
         self.time = time.time() - start
 
